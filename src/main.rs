@@ -148,14 +148,14 @@ pub enum WType {
 pub enum CType {
   Child(Box::<BaseWidget>),
   Children(Vec<BaseWidget>),
-  None,
+  NoChild,
 }
 
 use std::cell::{RefCell, RefMut};
 
 pub struct BaseWidget {
   parent: Option<Box::<BaseWidget>>,
-  w_type: WType,
+  w_type: RefCell<WType>,
   c_type: CType,
   top: f32,
   left: f32,
@@ -163,11 +163,14 @@ pub struct BaseWidget {
   height: f32,
 }
 
+use crate::WType::{Column, Text};
+use crate::CType::{Child, Children, NoChild};
+
 impl BaseWidget {
 
   pub fn new(ctype: CType, wtype: WType) -> BaseWidget {
     BaseWidget {
-      w_type: wtype,
+      w_type: RefCell::new(wtype),
       c_type: ctype,
       top: 0.0,
       left: 0.0,
@@ -175,27 +178,30 @@ impl BaseWidget {
       height: 0.0,
       parent: None,
     }
-  }  
+  }
+
 
   pub fn run(&mut self) {
-    let im_type = match self.w_type {
-      WType::Column => "column",
-      WType::Text(_) => "text",
+    let im_type = match &*self.w_type.borrow() {
+      Column => "column",
+      Text(_) => "text",
     };
     println!("I'm a {} and my postion is x:{:.1} y:{:.1}", im_type, self.top, self.left);
 
+    let mut this = self.w_type.borrow_mut();
+
     // TODO: Find out how to use RefCell
     // Checks Widgets type 
-    match &self.w_type {
+    match &mut *this {
       // If widget is type Text then render text related stuff
-      WType::Text(t) => { 
+      Text(t) => { 
         println!("Rebuilding text");
-        self.w_type = WType::Text(TextType{text: format!("New Value {}", t.text)});
-        //println!("New text value {}", &t.text);
+        *this = Text(TextType{text: format!("New Value {}", &t.text)});
+        println!("New text value {}", &t.text);
         
       },
       // If widget is type Column then calculate children size and set then they location
-      WType::Column => {
+      Column => {
         // TODO: Needs to find a way to cache childrens layout location
         // The widget type column is flexible and needs to first calculate all children with a
         // fixed size and divide the remaining height among the children with flexible size
@@ -224,8 +230,8 @@ impl BaseWidget {
 // TODO: that will allow more control over widget creation
 fn text(value: String) -> BaseWidget {
   BaseWidget {
-    w_type: WType::Text(TextType{text: value}),
-    c_type: CType::None,
+    w_type: RefCell::new(Text(TextType{text: value})),
+    c_type: NoChild,
     top: 0.0,
     left: 0.0,
     width: 0.0,
@@ -236,8 +242,8 @@ fn text(value: String) -> BaseWidget {
 
 fn column<'a>(children: Vec<BaseWidget>) -> BaseWidget {
   BaseWidget {
-    w_type: WType::Column,
-    c_type: CType::Children(children),
+    w_type: RefCell::new(Column),
+    c_type: Children(children),
     top: 0.0,
     left: 0.0,
     width: 0.0,
@@ -255,7 +261,7 @@ fn column<'a>(children: Vec<BaseWidget>) -> BaseWidget {
 
 //   app.body.get_base().get_children().as_mut().unwrap()[0].get_base().set_pos(2.0,3.5);
 //   app.body.get_base().get_children().as_mut().unwrap()[0].get_base().get_pos();
-//   let mut t1  = BaseWidget::new( CType::None, WType::Text(TextType{text: "Here".to_owned()}));
+//   let mut t1  = BaseWidget::new( CType::None, Text(TextType{text: "Here".to_owned()}));
 // }
 
 
